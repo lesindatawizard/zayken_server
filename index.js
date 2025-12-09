@@ -19,8 +19,8 @@ const upload = multer({ dest: "uploads/" });
 // SMTP — GoDaddy Professional Email
 // ----------------------------------------
 const transporter = nodemailer.createTransport({
-  host: "smtpout.secureserver.net",
-  port: 587,
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
   secure: false, // STARTTLS
   auth: {
     user: process.env.EMAIL_USER,
