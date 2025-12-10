@@ -19,19 +19,22 @@ const upload = multer({ dest: "uploads/" });
 // SMTP — GoDaddy Professional Email
 // ----------------------------------------
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  secure: false, // STARTTLS
+  host: process.env.SMTP_SERVER,  // smtp-relay.brevo.com
+  port: Number(process.env.SMTP_PORT), // 587
+  secure: false, // must be FALSE for port 587 (STARTTLS)
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
+    user: process.env.SMTP_LOGIN,     // your Brevo login email
+    pass: process.env.SMTP_PASSWORD,  // your Brevo SMTP key (password)
+  },
+  tls: {
+    rejectUnauthorized: false
   }
-});
+}); 
 
 // Verify SMTP connection
 transporter.verify((err) => {
   if (err) console.log("❌ SMTP Error:", err);
-  else console.log("✅ SMTP Server Ready");
+  else console.log("✅ SMTP Server Ready to send emails.");
 });
 
 // ----------------------------------------
