@@ -1,8 +1,9 @@
 import express from "express";
 import cors from "cors";
-import nodemailer from "nodemailer";
 import multer from "multer";
 import dotenv from "dotenv";
+import Brevo from '@getbrevo/brevo';
+import fs from "fs";
 
 dotenv.config();
 
@@ -15,27 +16,11 @@ app.use(express.json());
 // ----------------------------------------
 const upload = multer({ dest: "uploads/" });
 
-// ----------------------------------------
-// SMTP — GoDaddy Professional Email
-// ----------------------------------------
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_SERVER,  // smtp-relay.brevo.com
-  port: Number(process.env.SMTP_PORT), // 587
-  secure: false, // must be FALSE for port 587 (STARTTLS)
-  auth: {
-    user: process.env.SMTP_LOGIN,     // your Brevo login email
-    pass: process.env.SMTP_PASSWORD,  // your Brevo SMTP key (password)
-  },
-  tls: {
-    rejectUnauthorized: false
-  }
-}); 
-
-// Verify SMTP connection
-transporter.verify((err) => {
-  if (err) console.log("❌ SMTP Error:", err);
-  else console.log("✅ SMTP Server Ready to send emails.");
-});
+const brevoClient = new Brevo.TransactionalEmailsApi();
+brevoClient.setApiKey(
+  Brevo.TransactionalEmailsApiApiKeys.apiKey,
+  process.env.BREVO_API_KEY
+);
 
 // ----------------------------------------
 // TEST ROUTE
@@ -51,15 +36,14 @@ app.post("/submit-quote", upload.array("attachments"), async (req, res) => {
   try {
     const form = req.body;
     const files = req.files || [];
+    const brevoAttachments = files.map((f) => ({
+      name: f.originalname,
+      content: fs.readFileSync(f.path).toString("base64"),
+    }));
 
     console.log("📩 Form:", form);
     console.log("📎 Files:", files);
 
-    // Build email attachments
-    const emailAttachments = files.map((f) => ({
-      filename: f.originalname,
-      path: f.path,
-    }));
 
     // ----------------------------------------
     // BUILD EMAIL HTML TEMPLATE
@@ -239,16 +223,14 @@ app.post("/submit-quote", upload.array("attachments"), async (req, res) => {
   
     </div>
   `;
-    // ----------------------------------------
-    // SEND EMAIL
-    // ----------------------------------------
-    await transporter.sendMail({
-      from: `"Zayken Projects" <info@zaykenprojects.com>`,
-      to: "info@zaykenprojects.com",
-      subject: `📩 New Quote Request – ${form.name}`,
-      html: htmlContent,
-      attachments: emailAttachments,
-    });
+
+  await brevoClient.sendTransacEmail({
+    sender: { name: "Zayken Projects", email: "info@zaykenprojects.com" },
+    to: [{ email: "info@zaykenprojects.com" }],
+    subject: `📩 New Quote Request – ${form.name}`,
+    htmlContent: htmlContent,
+    attachment: brevoAttachments
+  });
 
     res.json({ success: true, message: "Email sent successfully!" });
 
