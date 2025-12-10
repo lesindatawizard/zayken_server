@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import multer from "multer";
 import dotenv from "dotenv";
-import Brevo from '@getbrevo/brevo';
+import * as Brevo from '@getbrevo/brevo';
 import fs from "fs";
 
 dotenv.config();
