@@ -36,10 +36,38 @@ app.post("/submit-quote", upload.array("attachments"), async (req, res) => {
   try {
     const form = req.body;
     const files = req.files || [];
-    const brevoAttachments = files.map((f) => ({
-      name: f.originalname,
-      content: fs.readFileSync(f.path).toString("base64"),
-    }));
+    // Prevent undefined fields from crashing email template
+form.type = form.type || "";
+form.name = form.name || "";
+form.email = form.email || "";
+form.phone = form.phone || "";
+form.projectLocation = form.projectLocation || "";
+form.message = form.message || "";
+
+   // ----------------------------------------
+    // CRITICAL FIX → Convert checkbox strings → arrays
+    // ----------------------------------------
+    function ensureArray(field) {
+      if (!field) return [];
+      return Array.isArray(field) ? field : [field];
+    }
+
+    form.commercialScope = ensureArray(form.commercialScope);
+    form.residentialScope = ensureArray(form.residentialScope);
+    form.fnbScope = ensureArray(form.fnbScope);
+
+    // ----------------------------------------
+    // Attachments → Convert to base64
+    // ----------------------------------------
+    let brevoAttachments = [];
+
+    if (files.length > 0) {
+      brevoAttachments = files.map((f) => ({
+        name: f.originalname,
+        content: fs.readFileSync(f.path).toString("base64"),
+        type: f.mimetype   // <-- REQUIRED for Brevo
+      }));
+    }
 
     console.log("📩 Form:", form);
     console.log("📎 Files:", files);
@@ -73,7 +101,7 @@ app.post("/submit-quote", upload.array("attachments"), async (req, res) => {
         </tr>
         <tr>
           <td style="padding:8px; font-weight:bold;">Client Type</td>
-          <td style="padding:8px;">${form.type.toUpperCase()}</td>
+          <td style="padding:8px;">${(form.type || "").toUpperCase()}</td>
         </tr>
         <tr>
           <td style="padding:8px; font-weight:bold;">Project Location</td>
@@ -224,13 +252,25 @@ app.post("/submit-quote", upload.array("attachments"), async (req, res) => {
     </div>
   `;
 
-  await brevoClient.sendTransacEmail({
+  const emailPayload = {
     sender: { name: "Zayken Projects", email: "info@zaykenprojects.com" },
     to: [{ email: "info@zaykenprojects.com" }],
     subject: `📩 New Quote Request – ${form.name}`,
-    htmlContent: htmlContent,
-    attachment: brevoAttachments
-  });
+    htmlContent,
+  };
+  
+  // Only attach if actual files exist
+  if (brevoAttachments && brevoAttachments.length > 0) {
+    emailPayload.attachment = brevoAttachments;
+  } else {
+    // IMPORTANT FIX → prevents Brevo 400
+    delete emailPayload.attachment;
+  }
+  
+  await brevoClient.sendTransacEmail(emailPayload);
+
+      // Cleanup uploaded temp files
+      files.forEach((f) => fs.unlinkSync(f.path));
 
     res.json({ success: true, message: "Email sent successfully!" });
 
